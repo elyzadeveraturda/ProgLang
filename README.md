@@ -7,8 +7,7 @@
 Pull the latest code to your local machine.
 
 ```bash
-git clone <URL-to-your-CodeVirtus-repo>
-cd minilang-project
+git clone https://github.com/elyzadeveraturda/ProgLang.git
 
 ```
 
