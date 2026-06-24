@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MiniLang Interpreter</title>
+    <style>
+        :root {
+            --bg-color: #f9f9f9;
+            --border-color: #e0e0e0;
+            --text-main: #333;
+            --text-muted: #666;
+            --accent-purple: #e8e6f9;
+            --accent-purple-text: #4a3b8c;
+            --error-red: #d32f2f;
+            --success-green: #388e3c;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* Header & Examples */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .logo-area {
+            display: flex;
+            align-items: center;
+            background: var(--accent-purple);
+            padding: 10px 15px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+
+        .version-badge {
+            font-size: 0.75em;
+            color: var(--accent-purple-text);
+            margin-left: 10px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .example-btn {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: background 0.2s;
+        }
+
+        .example-btn:hover {
+            background: #f0f0f0;
+        }
+
+        /* Main Workspace */
+        .workspace {
+            display: flex;
+            flex: 1;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background: white;
+            overflow: hidden;
+        }
+
+        /* Left Panel - Editor */
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+        }
+
+        .toolbar {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            background: #f4f4f4;
+            border-bottom: 1px solid var(--border-color);
+            gap: 10px;
+        }
+
+        .toolbar-btn {
+            background: white;
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+
+        .toolbar-btn.run {
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .editor-textarea {
+            flex: 1;
+            width: 100%;
+            border: none;
+            padding: 15px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 14px;
+            resize: none;
+            outline: none;
+            box-sizing: border-box;
+            line-height: 1.5;
+        }
+
+        /* Right Panel - Output */
+        .output-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            background: #f4f4f4;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: var(--text-muted);
+            border-bottom: 2px solid transparent;
+        }
+
+        .tab.active {
+            color: var(--text-main);
+            font-weight: bold;
+            border-bottom: 2px solid var(--accent-purple-text);
+            background: white;
+        }
+
+        .console-output {
+            flex: 1;
+            padding: 15px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 13px;
+            background: #fbfbfb;
+            overflow-y: auto;
+        }
+
+        .log-success { color: var(--accent-purple-text); margin-bottom: 8px;}
+        .log-error { color: var(--error-red); }
+
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div class="logo-area">
+            ⚃ MiniLang 
+            <div class="version-badge">
+                <span>v1.0</span>
+                <span>TS31</span>
+            </div>
+        </div>
+        <button class="example-btn" onclick="loadExample(1)">Example 1 — basics</button>
+        <button class="example-btn" onclick="loadExample(2)">Example 2 — OOP</button>
+        <button class="example-btn" onclick="loadExample(3)">Example 3 — control flow</button>
+    </div>
+
+    <div class="workspace">
+        <!-- Editor Section -->
+        <div class="editor-panel">
+            <div class="toolbar">
+                <span style="font-size: 0.85em; color: var(--text-muted);">📄 editor.ml</span>
+                <button class="toolbar-btn" onclick="loadExample(1)">load example</button>
+                <button class="toolbar-btn" onclick="clearEditor()">clear</button>
+                <button class="toolbar-btn run" onclick="runCode()">▷ Run</button>
+            </div>
+            <textarea id="codeEditor" class="editor-textarea" spellcheck="false"></textarea>
+        </div>
+
+        <!-- Output Section -->
+        <div class="output-panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('console')">Console</div>
+                <div class="tab" onclick="switchTab('tokens')">Tokens</div>
+                <div class="tab" onclick="switchTab('ast')">AST</div>
+                <div class="tab" onclick="switchTab('symbols')">Symbols</div>
+            </div>
+            <div id="consoleOutput" class="console-output">
+                <!-- Output will appear here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Example Code Snippets
+        const examples = {
+            1: `# MiniLang Example 1: Data Types, Variables & Functions\n\nvar name: String = "MiniLang";\nvar version: Int = 1;\nvar pi: Float = 3.14159;\nvar isReady: Bool = true;\n\nfunc greet(who: String): String {\n    return "Hello from " + who + "!";\n}\n\n// Simulate the error from the screenshot for the demo\nvar err = speak;`,
+            2: `# MiniLang Example 2: OOP Features\n\nclass Animal {\n    var name: String;\n    func init(n: String) {\n        name = n;\n    }\n}`,
+            3: `# MiniLang Example 3: Control Flow\n\nvar x: Int = 0;\nwhile (x < 5) {\n    if (x == 3) {\n        print("Halfway!");\n    }\n    x = x + 1;\n}`
+        };
+
+        function loadExample(num) {
+            document.getElementById('codeEditor').value = examples[num];
+        }
+
+        function clearEditor() {
+            document.getElementById('codeEditor').value = '';
+            document.getElementById('consoleOutput').innerHTML = '';
+        }
+
+        function switchTab(tabName) {
+            // Update active tab styling
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Handle tab content (Mocking behavior for UI demo)
+            const output = document.getElementById('consoleOutput');
+            if(tabName === 'console') {
+                runCode();
+            } else {
+                output.innerHTML = `<div style="color:#666;">Showing ${tabName} data... (Implement backend connection here)</div>`;
+            }
+        }
+
+        async function runCode() {
+            const output = document.getElementById('consoleOutput');
+            const code = document.getElementById('codeEditor').value;
+            
+            if(code.trim() === '') {
+                output.innerHTML = '';
+                return;
+            }
+
+            output.innerHTML = '<div style="color: #666;">Compiling...</div>';
+
+            try {
+                // Send the code to your Python backend
+                const response = await fetch('http://localhost:5001/run', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ code: code })
+                });
+
+                const data = await response.json();
+
+                // Display the results in the console tab
+                if (data.error) {
+                    output.innerHTML = `<div class="log-error">${data.console}</div>`;
+                } else {
+                    output.innerHTML = `<div class="log-success">${data.console}</div>`;
+                }
+
+                // Store the tokens globally so we can view them in the "Tokens" tab later
+                window.latestTokens = data.tokens;
+
+            } catch (err) {
+                output.innerHTML = `<div class="log-error">✗ Error connecting to the server. Is app.py running?</div>`;
+            }
+        }
+
+        // Load Example 1 on startup
+        window.onload = () => {
+            loadExample(1);
+        };
+    </script>
+</body>
+</html>
