@@ -163,17 +163,33 @@
         .log-success { color: var(--accent-purple-text); margin-bottom: 8px;}
         .log-error { color: var(--error-red); }
 
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            background-color: #f4f4f4;
+            font-weight: bold;
+            color: var(--text-main);
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+
     </style>
 </head>
 <body>
 
     <div class="header">
         <div class="logo-area">
-            ⚃ MiniLang 
-            <div class="version-badge">
-                <span>v1.0</span>
-                <span>TS31</span>
-            </div>
+            ⚃ CODE Virtus 
         </div>
         <button class="example-btn" onclick="loadExample(1)">Example 1 — basics</button>
         <button class="example-btn" onclick="loadExample(2)">Example 2 — OOP</button>
@@ -210,7 +226,7 @@
         // Example Code Snippets
         const examples = {
             1: `# MiniLang Example 1: Data Types, Variables & Functions\n\nvar name: String = "MiniLang";\nvar version: Int = 1;\nvar pi: Float = 3.14159;\nvar isReady: Bool = true;\n\nfunc greet(who: String): String {\n    return "Hello from " + who + "!";\n}\n\n// Simulate the error from the screenshot for the demo\nvar err = speak;`,
-            2: `# MiniLang Example 2: OOP Features\n\nclass Animal {\n    var name: String;\n    func init(n: String) {\n        name = n;\n    }\n}`,
+            2: `# MiniLang Example 2: OOP Features\n\nclass Animal {\n    var name: String;\n    func init(n: String) {\n        name = n;\n    }\n    func speak(): String {\n        return name + " says hello!";\n    }\n}\n\nvar rex = Animal("Rex");\nprint(rex.name);\nprint(rex.speak());`,
             3: `# MiniLang Example 3: Control Flow\n\nvar x: Int = 0;\nwhile (x < 5) {\n    if (x == 3) {\n        print("Halfway!");\n    }\n    x = x + 1;\n}`
         };
 
@@ -223,18 +239,26 @@
             document.getElementById('consoleOutput').innerHTML = '';
         }
 
+        let activeTab = 'console';
+
         function switchTab(tabName) {
             // Update active tab styling
             const tabs = document.querySelectorAll('.tab');
             tabs.forEach(tab => tab.classList.remove('active'));
-            event.target.classList.add('active');
+            if (event && event.target) {
+                event.target.classList.add('active');
+            }
 
-            // Handle tab content (Mocking behavior for UI demo)
-            const output = document.getElementById('consoleOutput');
-            if(tabName === 'console') {
-                runCode();
-            } else {
-                output.innerHTML = `<div style="color:#666;">Showing ${tabName} data... (Implement backend connection here)</div>`;
+            activeTab = tabName;
+            renderActiveTab();
+        }
+
+        function renderActiveTab() {
+            switch (activeTab) {
+                case "console": renderConsole(); break;
+                case "tokens": renderTokens(); break;
+                case "ast": renderAST(); break;
+                case "symbols": renderSymbols(); break;
             }
         }
 
@@ -251,7 +275,7 @@
 
             try {
                 // Send the code to your Python backend
-                const response = await fetch('http://localhost:5001/run', {
+                const response = await fetch('http://localhost:5000/run', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -261,19 +285,131 @@
 
                 const data = await response.json();
 
-                // Display the results in the console tab
-                if (data.error) {
-                    output.innerHTML = `<div class="log-error">${data.console}</div>`;
-                } else {
-                    output.innerHTML = `<div class="log-success">${data.console}</div>`;
-                }
-
                 // Store the tokens globally so we can view them in the "Tokens" tab later
-                window.latestTokens = data.tokens;
+                window.latestCompilerData = data;
+
+                // Display the results in the console tab using renderConsole
+                renderActiveTab();
 
             } catch (err) {
                 output.innerHTML = `<div class="log-error">✗ Error connecting to the server. Is app.py running?</div>`;
             }
+        }
+
+        function renderConsole(){
+            const output=document.getElementById("consoleOutput");
+            if(!window.latestCompilerData){
+                output.innerHTML="<i>Run the compiler first.</i>";
+                return;
+            }
+
+            output.innerHTML="";
+            if (Array.isArray(latestCompilerData.console)) {
+                latestCompilerData.console.forEach(line=>{
+                    let cls="";
+                    if(typeof line === 'string') {
+                        if(line.startsWith("✓"))
+                            cls="log-success";
+                        else if(line.startsWith("✗"))
+                            cls="log-error";
+                        output.innerHTML+=`<div class="${cls}">${line}</div>`;
+                    }
+                });
+            }
+        }
+
+        function renderTokens(){
+            let html="<table>";
+            const output=document.getElementById("consoleOutput");
+
+            if(!window.latestCompilerData){
+
+                output.innerHTML="<i>Run the compiler first.</i>";
+
+                return;
+
+            }
+
+            html+="<tr><th>Type</th><th>Value</th></tr>";
+            latestCompilerData.tokens.forEach(token=>{
+            html+=`
+            <tr>
+            <td>${token.type}</td>
+            <td>${token.value}</td>
+            </tr>
+            `;
+            });
+            html+="</table>";
+            output.innerHTML=html;
+
+            
+        return html;}
+
+
+        function renderNode(node,indent=""){
+            if(node===null)
+                return "";
+
+            // Handle arrays
+            if(Array.isArray(node)){
+                let html="";
+                node.forEach((item, index) => {
+                    html+=renderNode(item, indent);
+                });
+                return html;
+            }
+
+            // Handle objects with type field (AST nodes)
+            if(typeof node === 'object' && node.type){
+                let html=indent+"<strong>"+node.type+"</strong><br>";
+                for(let key in node){
+                    if(key==="type") continue;
+                    if(typeof node[key]==="object" && node[key]!==null){
+                        html+=`${indent}&nbsp;&nbsp;<strong>${key}:</strong><br>`;
+                        html+=renderNode(node[key], indent+"&nbsp;&nbsp;&nbsp;&nbsp;");
+                    } else {
+                        html+=`${indent}&nbsp;&nbsp;${key}: ${node[key]}<br>`;
+                    }
+                }
+                return html;
+            }
+
+            // Handle primitive values
+            if(typeof node !== 'object'){
+                return `${indent}${node}<br>`;
+            }
+
+            return "";
+        }
+
+        function renderSymbols(){
+            const output=document.getElementById("consoleOutput");
+            if(!window.latestCompilerData){
+                output.innerHTML="<i>Run the compiler first.</i>";
+                return;
+            }
+
+            let html="<table>";
+            html+="<tr><th>Name</th><th>Type</th><th>Value</th><th>Scope</th><th>Mutable</th></tr>";
+
+            if(Array.isArray(latestCompilerData.symbols) && latestCompilerData.symbols.length > 0) {
+                latestCompilerData.symbols.forEach(symbol=>{
+                    html+=`<tr><td>${symbol.name}</td><td>${symbol.type}</td><td>${symbol.value}</td><td>${symbol.scope}</td><td>${symbol.mutable ? 'Yes' : 'No'}</td></tr>`;
+                });
+            } else {
+                html+="<tr><td colspan='5'><i>No symbols defined.</i></td></tr>";
+            }
+            html+="</table>";
+            output.innerHTML=html;
+        }
+
+        function renderAST(){
+            const output=document.getElementById("consoleOutput");
+            if(!window.latestCompilerData || !latestCompilerData.ast){
+                output.innerHTML="<i>No AST generated.</i>";
+                return;
+            }
+            output.innerHTML=renderNode(latestCompilerData.ast);
         }
 
         // Load Example 1 on startup
