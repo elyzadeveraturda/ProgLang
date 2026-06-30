@@ -107,6 +107,14 @@ class SymbolTable:
         symbol.value = value
 
     def to_dict(self):
+        # CHANGE: stringify FuncDecl / ClassDecl values instead of returning
+        # the raw AST dataclass object. Previously a function or class
+        # symbol's "value" field held the actual FuncDecl/ClassDecl node,
+        # which the JSON serializer in serializer.py / Flask's jsonify()
+        # can't handle and would crash on. Plain Int/String/Bool/Float
+        # symbols already store a type-string in `value`, so those are
+        # left untouched.
+        from ast_nodes import FuncDecl, ClassDecl
 
         result = []
 
@@ -116,13 +124,20 @@ class SymbolTable:
 
             for symbol in scope.values():
 
+                if isinstance(symbol.value, FuncDecl):
+                    display_value = f"<function {symbol.value.name}>"
+                elif isinstance(symbol.value, ClassDecl):
+                    display_value = f"<class {symbol.value.name}>"
+                else:
+                    display_value = symbol.value
+
                 result.append({
 
                     "name": symbol.name,
 
                     "type": symbol.type_annotation,
 
-                    "value": symbol.value,
+                    "value": display_value,
 
                     "scope": scope_name,
 

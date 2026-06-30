@@ -2,26 +2,11 @@
 semantic.py
 Semantic Analysis — Phase 5, plus Data Types — Phase 7.
 
-Walks the AST that parser.py builds, using symbol_table.py to track
-declarations and scope, and checks:
-  - every name used is actually declared (Phase 4 enforcement)
-  - every operation is applied to compatible types (Phase 5)
-  - basic type conversion rules for Int / Float / String / Bool (Phase 7)
-
-IMPORTANT: this module's SymbolTable stores TYPE STRINGS in the `value`
-field (e.g. "Int", "String"), not real runtime values — semantic
-analysis happens before the program actually runs. interpreter.py will
-create its OWN SymbolTable instance later, where `value` holds real
-runtime values (5, "hello", True, etc).
-
-Usage from compiler.py:
-
-    from semantic import SemanticAnalyzer, SemanticError
-
-    try:
-        symbol_table = SemanticAnalyzer().check(ast)
-    except SemanticError as e:
-        ...
+CHANGES FROM ORIGINAL:
+  1. Added _infer_LogicalOp() so 'and', 'or', 'not' are type-checked
+     (operands must be Bool; result is Bool).
+  2. Updated _check_PrintStmt() to handle the new multi-argument
+     PrintStmt.values list instead of the old single .value field.
 """
 
 from ast_nodes import (
@@ -32,32 +17,20 @@ from symbol_table import SymbolTable
 
 
 class SemanticError(Exception):
-    """Raised for any type or declaration problem. compiler.py catches
-    this the same way it catches LexerError / ParserError."""
     pass
 
 
 KNOWN_TYPES = {"Int", "Float", "String", "Bool"}
 NUMERIC_TYPES = {"Int", "Float"}
-
-# Params/returns with no annotation are treated as this wildcard type —
-# compatible with everything. Keeps the type system simple for a teaching
-# project instead of requiring full type inference.
 ANY_TYPE = "Any"
 
 
 class SemanticAnalyzer:
     def __init__(self, symbol_table=None):
         self.symbol_table = symbol_table or SymbolTable()
-        # Tracks the expected return type of whichever function we're
-        # currently inside, so `return` statements can be checked.
-        # None at the top level (outside any function).
         self._return_type_stack = []
 
     def check(self, program):
-        """Entry point: type-checks every top-level statement.
-        Returns the populated SymbolTable for compiler.py / later phases
-        to inspect if needed."""
         for stmt in program.statements:
             self._check_statement(stmt)
         return self.symbol_table
@@ -71,7 +44,6 @@ class SemanticAnalyzer:
         return method(node)
 
     def _infer_type(self, node):
-        """Returns the type string for an expression node, e.g. 'Int'."""
         method = getattr(self, f"_infer_{type(node).__name__}", None)
         if method is None:
             raise SemanticError(f"Internal Error: no type rule for {type(node).__name__}")
@@ -80,15 +52,12 @@ class SemanticAnalyzer:
     # ---------- type compatibility ----------
 
     def _check_type_compatible(self, declared, actual, context):
-        """declared = the type something is supposed to be (annotation,
-        param type, return type). actual = the type it's actually getting.
-        Allows Int -> Float widening; everything else must match exactly."""
         if declared == ANY_TYPE or actual == ANY_TYPE:
             return
         if declared == actual:
             return
         if declared == "Float" and actual == "Int":
-            return  # widening: a Float-typed slot can hold an Int value
+            return
         raise SemanticError(f"Type Error: cannot assign {actual} to {context} of type {declared}")
 
     def _binary_result_type(self, op, left_type, right_type):
@@ -97,7 +66,7 @@ class SemanticAnalyzer:
 
         if op in ("+", "-", "*", "/"):
             if op == "+" and left_type == "String" and right_type == "String":
-                return "String"  # string concatenation
+                return "String"
             if left_type in NUMERIC_TYPES and right_type in NUMERIC_TYPES:
                 return "Float" if "Float" in (left_type, right_type) else "Int"
             raise SemanticError(f"Type Error: cannot apply '{op}' to {left_type} and {right_type}")
@@ -131,9 +100,9 @@ class SemanticAnalyzer:
             self._check_type_compatible(node.type_annotation, value_type, f"variable '{node.name}'")
             declared_type = node.type_annotation
         elif node.type_annotation is not None:
-            declared_type = node.type_annotation        # e.g. `var x: Int;` — no initial value yet
+            declared_type = node.type_annotation
         elif value_type is not None:
-            declared_type = value_type                  # e.g. `let y = 10;` — infer from value
+            declared_type = value_type
         else:
             raise SemanticError(
                 f"Type Error: variable '{node.name}' needs either a type annotation or an initial value"
@@ -142,8 +111,6 @@ class SemanticAnalyzer:
         self.symbol_table.define(node.name, value=declared_type, type_annotation=declared_type, is_let=node.is_let)
 
     def _check_FuncDecl(self, node):
-        # Register the function in the ENCLOSING scope first, so it can
-        # call itself recursively, and so sibling functions can call it.
         self.symbol_table.define(node.name, value=node, type_annotation=node.return_type, is_let=True)
 
         self.symbol_table.push_scope()
@@ -160,10 +127,6 @@ class SemanticAnalyzer:
     def _check_ClassDecl(self, node):
         self.symbol_table.define(node.name, value=node, type_annotation=node.name, is_let=True)
 
-        # Class-level scope holds fields. Pushed BEFORE checking methods,
-        # so a method body (e.g. init's `name = n;`) can see fields
-        # declared in this same class — matches the example in the
-        # README where init() assigns directly to a field with no `self`.
         self.symbol_table.push_scope()
         for member in node.members:
             if isinstance(member, VarDecl):
@@ -190,7 +153,7 @@ class SemanticAnalyzer:
             if isinstance(node.else_branch, Block):
                 self._check_Block(node.else_branch)
             else:
-                self._check_IfStmt(node.else_branch)  # else-if chain
+                self._check_IfStmt(node.else_branch)
 
     def _check_WhileStmt(self, node):
         cond_type = self._infer_type(node.condition)
@@ -199,8 +162,6 @@ class SemanticAnalyzer:
         self._check_Block(node.body)
 
     def _check_ForStmt(self, node):
-        # Own scope so a `for (var i: Int = 0; ...)` loop variable
-        # doesn't leak into the surrounding code.
         self.symbol_table.push_scope()
 
         if node.init is not None:
@@ -231,7 +192,9 @@ class SemanticAnalyzer:
             raise SemanticError(f"Type Error: function must return a value of type {expected}")
 
     def _check_PrintStmt(self, node):
-        self._infer_type(node.value)  # any type is printable — just must type-check cleanly
+        # CHANGE 2: iterate over all values in the list
+        for v in node.values:
+            self._infer_type(v)  # any type is printable; just must type-check cleanly
 
     def _check_ExprStmt(self, node):
         self._infer_type(node.expression)
@@ -242,13 +205,35 @@ class SemanticAnalyzer:
         return node.literal_type
 
     def _infer_Identifier(self, node):
-        symbol = self.symbol_table.get_symbol(node.name)  # raises SymbolTableError if undefined
+        symbol = self.symbol_table.get_symbol(node.name)
         return symbol.type_annotation or ANY_TYPE
 
     def _infer_BinaryOp(self, node):
         left_type = self._infer_type(node.left)
         right_type = self._infer_type(node.right)
         return self._binary_result_type(node.operator, left_type, right_type)
+
+    # CHANGE 1: new method — type-checks 'and', 'or', 'not'
+    def _infer_LogicalOp(self, node):
+        """'and' and 'or' require Bool operands and produce Bool.
+        'not' requires a Bool operand and produces Bool."""
+        if node.operator == "not":
+            right_type = self._infer_type(node.right)
+            if right_type not in ("Bool", ANY_TYPE):
+                raise SemanticError(
+                    f"Type Error: 'not' requires a Bool operand, got {right_type}"
+                )
+            return "Bool"
+
+        left_type = self._infer_type(node.left)
+        right_type = self._infer_type(node.right)
+        for t, side in ((left_type, "left"), (right_type, "right")):
+            if t not in ("Bool", ANY_TYPE):
+                raise SemanticError(
+                    f"Type Error: '{node.operator}' requires Bool operands, "
+                    f"got {t} on the {side} side"
+                )
+        return "Bool"
 
     def _infer_UnaryOp(self, node):
         operand_type = self._infer_type(node.operand)
@@ -259,14 +244,14 @@ class SemanticAnalyzer:
         )
 
     def _infer_Assignment(self, node):
-        symbol = self.symbol_table.get_symbol(node.target)  # raises SymbolTableError if undefined
+        symbol = self.symbol_table.get_symbol(node.target)
         value_type = self._infer_type(node.value)
         self._check_type_compatible(symbol.type_annotation or ANY_TYPE, value_type, f"variable '{node.target}'")
-        self.symbol_table.assign(node.target, value_type)   # also enforces `let` immutability
+        self.symbol_table.assign(node.target, value_type)
         return symbol.type_annotation or ANY_TYPE
 
     def _infer_FunctionCall(self, node):
-        symbol = self.symbol_table.get_symbol(node.callee)  # raises SymbolTableError if undefined
+        symbol = self.symbol_table.get_symbol(node.callee)
 
         if isinstance(symbol.value, FuncDecl):
             func = symbol.value
@@ -282,9 +267,6 @@ class SemanticAnalyzer:
             return func.return_type or ANY_TYPE
 
         if isinstance(symbol.value, ClassDecl):
-            # Object construction, e.g. Animal("Rex"). Checked against
-            # init() if the class defines one; skipped if it doesn't —
-            # full constructor enforcement is left for interpreter.py.
             cls = symbol.value
             init_method = next(
                 (m for m in cls.members if isinstance(m, FuncDecl) and m.name == "init"), None
@@ -299,16 +281,11 @@ class SemanticAnalyzer:
                     arg_type = self._infer_type(arg_node)
                     expected = param.type_annotation or ANY_TYPE
                     self._check_type_compatible(expected, arg_type, f"argument '{param.name}' of '{node.callee}'")
-            return cls.name  # the resulting type is "an instance of this class"
+            return cls.name
 
         raise SemanticError(f"Type Error: '{node.callee}' is not callable")
-    
+
     def _get_class_decl(self, type_name, member_name):
-        """Resolves a type name (e.g. "Animal") to its ClassDecl, so
-        MemberAccess/MethodCall can look up fields/methods on it.
-        Raises a clear error if the type isn't actually a class — this
-        is what catches things like trying to do `5.name` or accessing
-        a field on a function's return value when it wasn't a class."""
         if not self.symbol_table.exists(type_name):
             raise SemanticError(f"Type Error: '{type_name}' is not a class, cannot access '.{member_name}'")
         symbol = self.symbol_table.get_symbol(type_name)

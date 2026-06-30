@@ -3,418 +3,534 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MiniLang Interpreter</title>
+    <title>CODE Virtus | MiniLang IDE</title>
+    <!-- Modern Font: Inter for UI, JetBrains Mono for Code -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
         :root {
-            --bg-color: #f9f9f9;
-            --border-color: #e0e0e0;
-            --text-main: #333;
-            --text-muted: #666;
-            --accent-purple: #e8e6f9;
-            --accent-purple-text: #4a3b8c;
-            --error-red: #d32f2f;
-            --success-green: #388e3c;
+            /* Color Palette - Deep Slate & Electric Purple */
+            --bg-deep: #0f172a;
+            --bg-card: rgba(30, 41, 59, 0.7);
+            --bg-accent: #1e293b;
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.3);
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
+            --error: #ef4444;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --glass-border: rgba(255, 255, 255, 0.05);
+        }
+
+        * {
+            box-sizing: border-box;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
+            font-family: 'Inter', -apple-system, sans-serif;
+            background-color: var(--bg-deep);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(139, 92, 246, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.1) 0px, transparent 50%);
             color: var(--text-main);
             margin: 0;
-            padding: 20px;
+            padding: 24px;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            box-sizing: border-box;
-        }
-
-        /* Header & Examples */
-        .header {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
-        .logo-area {
-            display: flex;
-            align-items: center;
-            background: var(--accent-purple);
-            padding: 10px 15px;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-
-        .version-badge {
-            font-size: 0.75em;
-            color: var(--accent-purple-text);
-            margin-left: 10px;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .example-btn {
-            background: white;
-            border: 1px solid var(--border-color);
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 0.9em;
-            transition: background 0.2s;
-        }
-
-        .example-btn:hover {
-            background: #f0f0f0;
-        }
-
-        /* Main Workspace */
-        .workspace {
-            display: flex;
-            flex: 1;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background: white;
             overflow: hidden;
         }
 
-        /* Left Panel - Editor */
-        .editor-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid var(--border-color);
-        }
-
-        .toolbar {
+        /* Header Styling */
+        .header {
             display: flex;
             align-items: center;
-            padding: 10px;
-            background: #f4f4f4;
-            border-bottom: 1px solid var(--border-color);
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding: 0 8px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo-box {
+            background: linear-gradient(135deg, var(--primary), #3b82f6);
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 20px var(--primary-glow);
+        }
+
+        .logo-text {
+            font-weight: 700;
+            font-size: 1.25rem;
+            letter-spacing: -0.025em;
+            background: linear-gradient(to right, #fff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .example-group {
+            display: flex;
+            gap: 8px;
+            background: var(--bg-accent);
+            padding: 4px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+
+        .btn-example {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+
+        .btn-example:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 24px;
+            flex: 1;
+            min-height: 0; /* Important for flex/grid overflow */
+        }
+
+        .glass-panel {
+            background: var(--bg-card);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        /* Panel Headers */
+        .panel-header {
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        .panel-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+
+        .panel-title i {
+            color: var(--primary);
+        }
+
+        .actions {
+            display: flex;
             gap: 10px;
         }
 
-        .toolbar-btn {
-            background: white;
-            border: 1px solid var(--border-color);
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.85em;
-        }
-
-        .toolbar-btn.run {
-            font-weight: bold;
+        /* Buttons */
+        .btn {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 6px;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid transparent;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: 0 4px 12px var(--primary-glow);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px var(--primary-glow);
+            filter: brightness(1.1);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border-color: var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Editor Section */
+        .editor-container {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .line-numbers {
+            width: 48px;
+            padding: 20px 0;
+            text-align: right;
+            background: rgba(0, 0, 0, 0.2);
+            color: #4b5563;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            line-height: 1.6;
+            user-select: none;
+            border-right: 1px solid var(--border);
+            overflow: hidden;
         }
 
         .editor-textarea {
             flex: 1;
-            width: 100%;
+            background: transparent;
             border: none;
-            padding: 15px;
-            font-family: "Courier New", Courier, monospace;
+            color: #e2e8f0;
+            font-family: 'JetBrains Mono', monospace;
             font-size: 14px;
+            line-height: 1.6;
+            padding: 20px;
             resize: none;
             outline: none;
-            box-sizing: border-box;
-            line-height: 1.5;
+            white-space: pre;
+            overflow-wrap: normal;
         }
 
-        /* Right Panel - Output */
-        .output-panel {
-            flex: 1;
+        /* Output Tabs */
+        .tabs-container {
             display: flex;
-            flex-direction: column;
-        }
-
-        .tabs {
-            display: flex;
-            background: #f4f4f4;
-            border-bottom: 1px solid var(--border-color);
+            padding: 0 12px;
+            background: rgba(0, 0, 0, 0.1);
+            border-bottom: 1px solid var(--border);
         }
 
         .tab {
-            padding: 10px 20px;
-            cursor: pointer;
-            font-size: 0.9em;
+            padding: 12px 16px;
+            font-size: 0.85rem;
+            font-weight: 500;
             color: var(--text-muted);
+            cursor: pointer;
             border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
+        }
+
+        .tab:hover {
+            color: var(--text-main);
         }
 
         .tab.active {
-            color: var(--text-main);
-            font-weight: bold;
-            border-bottom: 2px solid var(--accent-purple-text);
-            background: white;
+            color: var(--primary);
+            border-bottom-color: var(--primary);
         }
 
-        .console-output {
+        .output-content {
             flex: 1;
-            padding: 15px;
-            font-family: "Courier New", Courier, monospace;
-            font-size: 13px;
-            background: #fbfbfb;
+            padding: 20px;
             overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            background: rgba(0, 0, 0, 0.1);
         }
 
-        .log-success { color: var(--accent-purple-text); margin-bottom: 8px;}
-        .log-error { color: var(--error-red); }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
 
-        /* Table Styling */
+        /* Table & Data Styles */
         table {
             width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-        }
-        th, td {
-            padding: 8px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-color);
+            border-collapse: separate;
+            border-spacing: 0;
         }
         th {
-            background-color: #f4f4f4;
-            font-weight: bold;
-            color: var(--text-main);
+            text-align: left;
+            padding: 12px;
+            color: var(--text-muted);
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border);
         }
-        tr:hover {
-            background-color: #f9f9f9;
+        td {
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            color: #cbd5e1;
+        }
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
         }
 
+        .log-line { margin-bottom: 8px; line-height: 1.5; }
+        .log-success { color: var(--success); }
+        .log-error { color: var(--error); }
+        .log-info { color: var(--primary); }
+
+        /* AST Tree Styles */
+        .ast-node { margin-left: 20px; border-left: 1px solid var(--border); padding-left: 10px; }
+        .ast-node summary { cursor: pointer; padding: 4px 0; list-style: none; }
+        .ast-node summary::-webkit-details-marker { display: none; }
+        .ast-node summary::before { content: '▹'; margin-right: 8px; color: var(--text-muted); }
+        .ast-node[open] > summary::before { content: '▿'; }
+        .ast-key { color: var(--text-muted); margin-right: 8px; }
+        .ast-type { color: var(--primary); font-weight: 600; }
+
+        @media (max-width: 1024px) {
+            .main-container { grid-template-columns: 1fr; }
+            body { height: auto; overflow: auto; }
+            .glass-panel { min-height: 500px; }
+        }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="logo-area">
-            ⚃ CODE Virtus 
+    <header class="header">
+        <div class="logo-container">
+            <div class="logo-box">⚃</div>
+            <div class="logo-text">CODE Virtus <span style="font-size: 0.7rem; opacity: 0.5; vertical-align: middle; margin-left: 8px;">v2.0</span></div>
         </div>
-        <button class="example-btn" onclick="loadExample(1)">Example 1 — basics</button>
-        <button class="example-btn" onclick="loadExample(2)">Example 2 — OOP</button>
-        <button class="example-btn" onclick="loadExample(3)">Example 3 — control flow</button>
-    </div>
+        <div class="example-group">
+            <button class="btn-example" onclick="loadExample(1)">Basics</button>
+            <button class="btn-example" onclick="loadExample(2)">OOP</button>
+            <button class="btn-example" onclick="loadExample(3)">Control Flow</button>
+        </div>
+    </header>
 
-    <div class="workspace">
-        <!-- Editor Section -->
-        <div class="editor-panel">
-            <div class="toolbar">
-                <span style="font-size: 0.85em; color: var(--text-muted);">📄 editor.ml</span>
-                <button class="toolbar-btn" onclick="loadExample(1)">load example</button>
-                <button class="toolbar-btn" onclick="clearEditor()">clear</button>
-                <button class="toolbar-btn run" onclick="runCode()">▷ Run</button>
+    <main class="main-container">
+        <!-- Editor Panel -->
+        <section class="glass-panel">
+            <div class="panel-header">
+                <div class="panel-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+                    main.ml
+                </div>
+                <div class="actions">
+                    <button class="btn btn-secondary" onclick="clearEditor()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                        Clear
+                    </button>
+                    <button class="btn btn-primary" onclick="runCode()">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Run Script
+                    </button>
+                </div>
             </div>
-            <textarea id="codeEditor" class="editor-textarea" spellcheck="false"></textarea>
-        </div>
+            <div class="editor-container">
+                <div id="lineNumbers" class="line-numbers">1</div>
+                <textarea id="codeEditor" class="editor-textarea" spellcheck="false" placeholder="Write your MiniLang code here..."></textarea>
+            </div>
+        </section>
 
-        <!-- Output Section -->
-        <div class="output-panel">
-            <div class="tabs">
-                <div class="tab active" onclick="switchTab('console')">Console</div>
-                <div class="tab" onclick="switchTab('tokens')">Tokens</div>
-                <div class="tab" onclick="switchTab('ast')">AST</div>
-                <div class="tab" onclick="switchTab('symbols')">Symbols</div>
+        <!-- Output Panel -->
+        <section class="glass-panel">
+            <div class="tabs-container">
+                <div class="tab active" onclick="switchTab('console', this)">Console</div>
+                <div class="tab" onclick="switchTab('tokens', this)">Tokens</div>
+                <div class="tab" onclick="switchTab('ast', this)">AST</div>
+                <div class="tab" onclick="switchTab('symbols', this)">Symbols</div>
             </div>
-            <div id="consoleOutput" class="console-output">
-                <!-- Output will appear here -->
+            <div id="outputContent" class="output-content">
+                <div class="log-info">Ready to execute. Press Run to begin.</div>
             </div>
-        </div>
-    </div>
+        </section>
+    </main>
 
     <script>
-        // Example Code Snippets
+        // Data and Examples
         const examples = {
-            1: `# MiniLang Example 1: Data Types, Variables & Functions\n\nvar name: String = "MiniLang";\nvar version: Int = 1;\nvar pi: Float = 3.14159;\nvar isReady: Bool = true;\n\nfunc greet(who: String): String {\n    return "Hello from " + who + "!";\n}\n\n// Simulate the error from the screenshot for the demo\nvar err = speak;`,
-            2: `# MiniLang Example 2: OOP Features\n\nclass Animal {\n    var name: String;\n    func init(n: String) {\n        name = n;\n    }\n    func speak(): String {\n        return name + " says hello!";\n    }\n}\n\nvar rex = Animal("Rex");\nprint(rex.name);\nprint(rex.speak());`,
+            1: `# MiniLang Example 1: Basics\nvar name: String = "CODE Virtus";\nvar version: Int = 2;\nvar pi: Float = 3.14159;\n\nfunc greet(who: String): String {\n    return "Hello from " + who + "!";\n}\n\nprint(greet(name));`,
+            2: `# MiniLang Example 2: OOP\nclass Animal {\n    var name: String;\n    func init(n: String) {\n        name = n;\n    }\n    func speak(): String {\n        return name + " says hello!";\n    }\n}\n\nvar rex = Animal("Rex");\nprint(rex.speak());`,
             3: `# MiniLang Example 3: Control Flow\n\nvar x: Int = 0;\nwhile (x < 5) {\n    if (x == 3) {\n        print("Halfway!");\n    }\n    x = x + 1;\n}`
         };
 
+        // UI State
+        let activeTabName = 'console';
+        window.latestCompilerData = null;
+
+        // Core Functions
         function loadExample(num) {
-            document.getElementById('codeEditor').value = examples[num];
+            const editor = document.getElementById('codeEditor');
+            editor.value = examples[num];
+            updateLineNumbers();
         }
 
         function clearEditor() {
             document.getElementById('codeEditor').value = '';
-            document.getElementById('consoleOutput').innerHTML = '';
+            document.getElementById('outputContent').innerHTML = '<div class="log-info">Editor cleared.</div>';
+            updateLineNumbers();
         }
 
-        let activeTab = 'console';
-
-        function switchTab(tabName) {
-            // Update active tab styling
-            const tabs = document.querySelectorAll('.tab');
-            tabs.forEach(tab => tab.classList.remove('active'));
-            if (event && event.target) {
-                event.target.classList.add('active');
-            }
-
-            activeTab = tabName;
-            renderActiveTab();
+        function updateLineNumbers() {
+            const editor = document.getElementById('codeEditor');
+            const lines = editor.value.split('\n').length;
+            const gutter = document.getElementById('lineNumbers');
+            gutter.innerHTML = Array.from({length: lines}, (_, i) => i + 1).join('<br>');
+            syncScroll();
         }
 
-        function renderActiveTab() {
-            switch (activeTab) {
-                case "console": renderConsole(); break;
-                case "tokens": renderTokens(); break;
-                case "ast": renderAST(); break;
-                case "symbols": renderSymbols(); break;
-            }
+        function syncScroll() {
+            const editor = document.getElementById('codeEditor');
+            const gutter = document.getElementById('lineNumbers');
+            gutter.scrollTop = editor.scrollTop;
+        }
+
+        function switchTab(tabName, element) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            element.classList.add('active');
+            activeTabName = tabName;
+            renderOutput();
         }
 
         async function runCode() {
-            const output = document.getElementById('consoleOutput');
             const code = document.getElementById('codeEditor').value;
+            const output = document.getElementById('outputContent');
             
-            if(code.trim() === '') {
-                output.innerHTML = '';
-                return;
-            }
+            if(!code.trim()) return;
 
-            output.innerHTML = '<div style="color: #666;">Compiling...</div>';
+            output.innerHTML = '<div class="log-info">Compiling and executing...</div>';
 
             try {
-                // Send the code to your Python backend
                 const response = await fetch('http://localhost:5000/run', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ code: code })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code })
                 });
 
-                const data = await response.json();
-
-                // Store the tokens globally so we can view them in the "Tokens" tab later
-                window.latestCompilerData = data;
-
-                // Display the results in the console tab using renderConsole
-                renderActiveTab();
-
+                window.latestCompilerData = await response.json();
+                renderOutput();
             } catch (err) {
-                output.innerHTML = `<div class="log-error">✗ Error connecting to the server. Is app.py running?</div>`;
+                output.innerHTML = `<div class="log-error">✗ Connection Error: Could not reach the MiniLang server.</div>`;
             }
         }
 
-        function renderConsole(){
-            const output=document.getElementById("consoleOutput");
-            if(!window.latestCompilerData){
-                output.innerHTML="<i>Run the compiler first.</i>";
+        function renderOutput() {
+            const container = document.getElementById('outputContent');
+            if (!window.latestCompilerData) {
+                container.innerHTML = '<div class="log-info">No execution data available. Run code first.</div>';
                 return;
             }
 
-            output.innerHTML="";
-            if (Array.isArray(latestCompilerData.console)) {
-                latestCompilerData.console.forEach(line=>{
-                    let cls="";
-                    if(typeof line === 'string') {
-                        if(line.startsWith("✓"))
-                            cls="log-success";
-                        else if(line.startsWith("✗"))
-                            cls="log-error";
-                        output.innerHTML+=`<div class="${cls}">${line}</div>`;
-                    }
-                });
-            }
-        }
-
-        function renderTokens(){
-            let html="<table>";
-            const output=document.getElementById("consoleOutput");
-
-            if(!window.latestCompilerData){
-
-                output.innerHTML="<i>Run the compiler first.</i>";
-
-                return;
-
-            }
-
-            html+="<tr><th>Type</th><th>Value</th></tr>";
-            latestCompilerData.tokens.forEach(token=>{
-            html+=`
-            <tr>
-            <td>${token.type}</td>
-            <td>${token.value}</td>
-            </tr>
-            `;
-            });
-            html+="</table>";
-            output.innerHTML=html;
-
+            container.innerHTML = '';
             
-        return html;}
-
-
-        function renderNode(node,indent=""){
-            if(node===null)
-                return "";
-
-            // Handle arrays
-            if(Array.isArray(node)){
-                let html="";
-                node.forEach((item, index) => {
-                    html+=renderNode(item, indent);
-                });
-                return html;
-            }
-
-            // Handle objects with type field (AST nodes)
-            if(typeof node === 'object' && node.type){
-                let html=indent+"<strong>"+node.type+"</strong><br>";
-                for(let key in node){
-                    if(key==="type") continue;
-                    if(typeof node[key]==="object" && node[key]!==null){
-                        html+=`${indent}&nbsp;&nbsp;<strong>${key}:</strong><br>`;
-                        html+=renderNode(node[key], indent+"&nbsp;&nbsp;&nbsp;&nbsp;");
-                    } else {
-                        html+=`${indent}&nbsp;&nbsp;${key}: ${node[key]}<br>`;
+            switch(activeTabName) {
+                case 'console':
+                    if (Array.isArray(latestCompilerData.console)) {
+                        latestCompilerData.console.forEach(line => {
+                            const div = document.createElement('div');
+                            div.className = 'log-line ' + (line.startsWith('✓') ? 'log-success' : line.startsWith('✗') ? 'log-error' : '');
+                            div.textContent = line;
+                            container.appendChild(div);
+                        });
                     }
+                    break;
+                case 'tokens':
+                    const table = document.createElement('table');
+                    table.innerHTML = `<tr><th>Type</th><th>Value</th><th>Line</th></tr>`;
+                    latestCompilerData.tokens?.forEach(t => {
+                        const row = table.insertRow();
+                        row.innerHTML = `<td>${escapeHTML(t.type)}</td><td>${escapeHTML(t.value)}</td><td>${t.line}</td>`;
+                    });
+                    container.appendChild(table);
+                    break;
+                case 'ast':
+                    container.innerHTML = renderASTNode(latestCompilerData.ast);
+                    break;
+                case 'symbols':
+                    const sTable = document.createElement('table');
+                    sTable.innerHTML = `<tr><th>Name</th><th>Type</th><th>Value</th><th>Scope</th></tr>`;
+                    latestCompilerData.symbols?.forEach(s => {
+                        const row = sTable.insertRow();
+                        row.innerHTML = `<td>${escapeHTML(s.name)}</td><td>${escapeHTML(s.type)}</td><td>${escapeHTML(s.value)}</td><td>${escapeHTML(s.scope)}</td>`;
+                    });
+                    container.appendChild(sTable);
+                    break;
+            }
+        }
+
+        function renderASTNode(node) {
+            if (!node || typeof node !== 'object') return `<span>${escapeHTML(node)}</span>`;
+            
+            let html = `<details class="ast-node" open>`;
+            html += `<summary><span class="ast-type">${escapeHTML(node.type || 'Node')}</span></summary>`;
+            
+            for (let key in node) {
+                if (key === 'type') continue;
+                html += `<div style="margin-left: 20px;"><span class="ast-key">${key}:</span>`;
+                if (Array.isArray(node[key])) {
+                    node[key].forEach(child => {
+                        html += renderASTNode(child);
+                    });
+                } else if (typeof node[key] === 'object') {
+                    html += renderASTNode(node[key]);
+                } else {
+                    html += `<span>${escapeHTML(node[key])}</span>`;
                 }
-                return html;
+                html += `</div>`;
             }
-
-            // Handle primitive values
-            if(typeof node !== 'object'){
-                return `${indent}${node}<br>`;
-            }
-
-            return "";
+            html += `</details>`;
+            return html;
         }
 
-        function renderSymbols(){
-            const output=document.getElementById("consoleOutput");
-            if(!window.latestCompilerData){
-                output.innerHTML="<i>Run the compiler first.</i>";
-                return;
-            }
-
-            let html="<table>";
-            html+="<tr><th>Name</th><th>Type</th><th>Value</th><th>Scope</th><th>Mutable</th></tr>";
-
-            if(Array.isArray(latestCompilerData.symbols) && latestCompilerData.symbols.length > 0) {
-                latestCompilerData.symbols.forEach(symbol=>{
-                    html+=`<tr><td>${symbol.name}</td><td>${symbol.type}</td><td>${symbol.value}</td><td>${symbol.scope}</td><td>${symbol.mutable ? 'Yes' : 'No'}</td></tr>`;
-                });
-            } else {
-                html+="<tr><td colspan='5'><i>No symbols defined.</i></td></tr>";
-            }
-            html+="</table>";
-            output.innerHTML=html;
+        function escapeHTML(str) {
+            return String(str).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":"&#39;"}[m]));
         }
 
-        function renderAST(){
-            const output=document.getElementById("consoleOutput");
-            if(!window.latestCompilerData || !latestCompilerData.ast){
-                output.innerHTML="<i>No AST generated.</i>";
-                return;
-            }
-            output.innerHTML=renderNode(latestCompilerData.ast);
-        }
-
-        // Load Example 1 on startup
+        // Initialize
         window.onload = () => {
             loadExample(1);
+            const editor = document.getElementById('codeEditor');
+            editor.addEventListener('input', updateLineNumbers);
+            editor.addEventListener('scroll', syncScroll);
+            
+            // Shortcut: Ctrl+Enter
+            editor.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                    e.preventDefault();
+                    runCode();
+                }
+            });
         };
     </script>
 </body>

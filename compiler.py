@@ -21,7 +21,7 @@ def run_mini_compiler(source_code):
     tokens = []
     ast = None
     error = None
-    semantic_analyzer = None
+    symbols = []  # CHANGE: populated from the single semantic_analyzer.check() call below
 
     try:
         # Phase 2: Lexical Analysis
@@ -35,8 +35,14 @@ def run_mini_compiler(source_code):
         )
 
         # Phase 4 + 5 + 7: Scope/Binding, Semantic Analysis, Data Types
+        # CHANGE: run semantic analysis exactly ONCE and keep the resulting
+        # symbol_table, instead of re-running SemanticAnalyzer().check(ast)
+        # a second time afterward just to get symbols. Every successful
+        # program used to be type-checked twice — same cost, same result,
+        # just wasted work. Now we capture symbol_table here and reuse it.
         semantic_analyzer = SemanticAnalyzer()
-        semantic_analyzer.check(ast)
+        symbol_table = semantic_analyzer.check(ast)
+        symbols = symbol_table.to_dict()
         console_output.append("✓ Semantic analysis complete")
 
         # Phase 5 + 6 + 8: Execution, Control Flow, OOP
@@ -47,21 +53,16 @@ def run_mini_compiler(source_code):
     except (LexerError, ParserError, SemanticError, SymbolTableError, RuntimeError) as e:
         error = str(e)
         console_output.append(f"✗ {error}")
+        symbols = []  # CHANGE: no partial symbol table on failure, same behavior as before
     except Exception as e:
         # Catch-all so an unexpected bug never crashes the Flask request.
         error = f"Internal Error: {e}"
         console_output.append(f"✗ {error}")
+        symbols = []
 
-    # Extract symbols from semantic analysis if successful
-    symbols = []
-    if error is None and ast is not None:
-        try:
-            semantic_analyzer = SemanticAnalyzer()
-            symbol_table = semantic_analyzer.check(ast)
-            symbols = symbol_table.to_dict()
-        except Exception:
-            # If symbol extraction fails, just return empty list
-            symbols = []
+    # CHANGE: the old "Extract symbols from semantic analysis if successful"
+    # block (which re-ran SemanticAnalyzer().check(ast) a second time) has
+    # been DELETED — symbols are now set inside the try block above.
 
     return {
         "success": error is None,

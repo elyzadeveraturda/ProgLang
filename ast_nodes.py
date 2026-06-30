@@ -1,15 +1,11 @@
 """
 ast_nodes.py
-Abstract Syntax Tree (AST) node definitions for MiniLang — Phase 3.
+AST node definitions for MiniLang.
 
-These are the "nouns" of the language. parser.py builds a tree of these
-nodes from the token stream; symbol_table.py / semantic.py / interpreter.py
-will later walk this same tree to check and run the program.
-
-Each node is a plain dataclass — no behavior, just structured data. That
-keeps parser.py focused on *building* the tree, and lets the later phases
-add their own logic (e.g. dispatch on type(node).__name__) without this
-file needing to change.
+CHANGES FROM ORIGINAL:
+  1. Added LogicalOp node for 'and' / 'or' / 'not' expressions.
+  2. PrintStmt.value changed to PrintStmt.values (a List) so
+     print("x =", x) works with multiple arguments.
 """
 
 from dataclasses import dataclass, field
@@ -20,7 +16,6 @@ from typing import Optional, List, Any
 
 @dataclass
 class Program:
-    """Root node. A MiniLang file is just a list of top-level statements."""
     statements: List[Any] = field(default_factory=list)
 
 
@@ -28,8 +23,6 @@ class Program:
 
 @dataclass
 class VarDecl:
-    """var x: Int = 5;   or   let y = 10;
-    type_annotation is None when omitted (e.g. `let y = 10;`)."""
     name: str
     type_annotation: Optional[str]
     value: Optional[Any]
@@ -38,14 +31,12 @@ class VarDecl:
 
 @dataclass
 class Param:
-    """A single function parameter: `who: String`"""
     name: str
     type_annotation: Optional[str]
 
 
 @dataclass
 class FuncDecl:
-    """func greet(who: String): String { ... }"""
     name: str
     params: List[Param]
     return_type: Optional[str]
@@ -54,8 +45,6 @@ class FuncDecl:
 
 @dataclass
 class ClassDecl:
-    """class Animal { var name: String; func init(n: String) { ... } }
-    members is a mixed list of VarDecl (fields) and FuncDecl (methods)."""
     name: str
     members: List[Any] = field(default_factory=list)
 
@@ -64,7 +53,6 @@ class ClassDecl:
 
 @dataclass
 class Block:
-    """A `{ ... }` body."""
     statements: List[Any] = field(default_factory=list)
 
 
@@ -72,7 +60,7 @@ class Block:
 class IfStmt:
     condition: Any
     then_branch: Block
-    else_branch: Optional[Any] = None  # Block or another IfStmt (else-if chains)
+    else_branch: Optional[Any] = None
 
 
 @dataclass
@@ -83,7 +71,6 @@ class WhileStmt:
 
 @dataclass
 class ForStmt:
-    """for (init; condition; update) { body }"""
     init: Optional[Any]
     condition: Optional[Any]
     update: Optional[Any]
@@ -97,12 +84,12 @@ class ReturnStmt:
 
 @dataclass
 class PrintStmt:
-    value: Any
+    # CHANGE 2: was `value: Any` — now a list so print("a", b, c) works
+    values: List[Any] = field(default_factory=list)
 
 
 @dataclass
 class ExprStmt:
-    """A bare expression used as a statement, e.g. `x = x + 1;`"""
     expression: Any
 
 
@@ -117,20 +104,30 @@ class Assignment:
 @dataclass
 class BinaryOp:
     left: Any
-    operator: str   # '+', '-', '*', '/', '==', '<', '>'
+    operator: str
+    right: Any
+
+
+# CHANGE 1: new node for 'and' / 'or' / 'not'
+@dataclass
+class LogicalOp:
+    """Logical operators: 'and', 'or' (binary) and 'not' (unary).
+    For 'not', left is None and right holds the operand."""
+    operator: str   # 'and' | 'or' | 'not'
+    left: Optional[Any]   # None for 'not'
     right: Any
 
 
 @dataclass
 class UnaryOp:
-    operator: str   # '-' or '+'
+    operator: str
     operand: Any
 
 
 @dataclass
 class Literal:
     value: Any
-    literal_type: str  # 'Int' | 'Float' | 'String' | 'Bool'
+    literal_type: str
 
 
 @dataclass
@@ -140,22 +137,18 @@ class Identifier:
 
 @dataclass
 class FunctionCall:
-    """greet("World") — also doubles as object construction (Animal("Rex")),
-    since at parse time we can't yet tell a function name from a class name."""
     callee: str
     arguments: List[Any] = field(default_factory=list)
 
 
 @dataclass
 class MemberAccess:
-    """obj.field — reads a field on an instance, e.g. `rex.name`."""
     obj: Any
     member: str
 
 
 @dataclass
 class MethodCall:
-    """obj.method(args) — calls a method on an instance, e.g. `rex.speak()`."""
     obj: Any
     method: str
     arguments: List[Any] = field(default_factory=list)

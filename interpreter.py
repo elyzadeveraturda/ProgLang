@@ -110,8 +110,12 @@ class Interpreter:
         raise _ReturnSignal(value)
 
     def _exec_PrintStmt(self, node):
-        value = self._evaluate(node.value)
-        self.output.append(self._stringify(value))
+        # CHANGE: print() now accepts multiple comma-separated arguments,
+        # e.g. print("x =", x). Each is evaluated, stringified, and the
+        # results are joined with a single space — matching how parser.py
+        # now builds PrintStmt.values as a list instead of one .value.
+        parts = [self._stringify(self._evaluate(v)) for v in node.values]
+        self.output.append(" ".join(parts))
 
     def _exec_ExprStmt(self, node):
         self._evaluate(node.expression)
@@ -168,6 +172,26 @@ class Interpreter:
     def _eval_UnaryOp(self, node):
         operand = self._evaluate(node.operand)
         return -operand if node.operator == "-" else operand
+
+    # CHANGE: new method — evaluates 'and' / 'or' / 'not' with proper
+    # short-circuit behavior (the right side of 'and'/'or' is only
+    # evaluated if needed), matching how every other language does it.
+    def _eval_LogicalOp(self, node):
+        if node.operator == "not":
+            return not self._evaluate(node.right)
+
+        left = self._evaluate(node.left)
+        if node.operator == "and":
+            if not left:
+                return False  # short-circuit: right side never evaluated
+            return bool(self._evaluate(node.right))
+
+        if node.operator == "or":
+            if left:
+                return True  # short-circuit: right side never evaluated
+            return bool(self._evaluate(node.right))
+
+        raise RuntimeError(f"Internal Error: unknown logical operator '{node.operator}'")
 
     def _eval_Assignment(self, node):
         from symbol_table import SymbolTableError

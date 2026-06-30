@@ -1,35 +1,27 @@
 """
 parser.py
-Syntax Analysis — Phase 3 (plus the syntax half of Phase 6: control flow).
+Syntax Analysis — Phase 3.
 
-Takes the flat token list from lexer.py's tokenizer (the same
-{"type": ..., "value": ...} dicts compiler.py already produces) and turns
-it into the AST defined in ast_nodes.py.
-
-Usage from compiler.py's orchestrator:
-
-    from lexer import tokenize
-    from parser import Parser, ParserError
-
-    tokens = tokenize(source_code)
-    try:
-        ast = Parser(tokens).parse()
-    except ParserError as e:
-        # str(e) is already formatted like the lexer's "Lexical Error: ..."
-        ...
+CHANGES FROM ORIGINAL:
+  1. Removed the dead _match_equality_operator() method (lexer already
+     emits == as one token; that workaround is no longer needed).
+  2. Added _parse_logical() in the precedence chain so 'and', 'or',
+     and 'not' are parsed correctly.
+  3. _parse_print() now collects a comma-separated argument list so
+     print("x =", x) works.
+  4. Error messages now include the line number from the token's 'line'
+     field, e.g. "Syntax Error (line 5): expected ';'".
 """
 
 from ast_nodes import (
     Program, VarDecl, Param, FuncDecl, ClassDecl, Block,
     IfStmt, WhileStmt, ForStmt, ReturnStmt, PrintStmt, ExprStmt,
-    Assignment, BinaryOp, UnaryOp, Literal, Identifier, FunctionCall,
-    MemberAccess, MethodCall,
+    Assignment, BinaryOp, LogicalOp, UnaryOp, Literal, Identifier,
+    FunctionCall, MemberAccess, MethodCall,
 )
 
 
 class ParserError(Exception):
-    """Raised on any syntax error. compiler.py catches this and sends it
-    to the frontend console, same pattern as the lexer's error messages."""
     pass
 
 
@@ -78,24 +70,16 @@ class Parser:
             self._error(f"expected {type_}", tok)
         return tok
 
+    # CHANGE 4: include line number in all error messages
     def _error(self, message, tok=None):
         if tok is not None:
-            raise ParserError(f"Syntax Error: {message}, got '{tok['value']}'")
+            line = tok.get("line", "?")
+            raise ParserError(f"Syntax Error (line {line}): {message}, got '{tok['value']}'")
         raise ParserError(f"Syntax Error: {message}, but reached end of input")
 
-    # NOTE: lexer.py's OP regex (`[+\-*/==<>]`) is a character class, so it
-    # matches a single '=' twice rather than the two-char token '=='.
-    # Until that's fixed in lexer.py, "x == 3" arrives here as two separate
-    # single-'=' tokens back-to-back. This helper detects that pattern and
-    # treats it as one equality operator so comparisons work today. Once
-    # lexer.py emits a real '==' token, delete this and use _match_value
-    # directly in _parse_equality().
-    def _match_equality_operator(self):
-        if self._check_value("=") and self._check_value("=", offset=1):
-            self._advance()
-            self._advance()
-            return "=="
-        return None
+    # CHANGE 1: _match_equality_operator() DELETED — it was a workaround
+    # for a lexer bug that no longer exists. The lexer now emits '==' as
+    # a single OP token, so _parse_equality() works without it.
 
     # ---------- entry point ----------
 
@@ -135,7 +119,7 @@ class Parser:
         return self._parse_expr_statement()
 
     def _parse_var_decl(self):
-        is_let = self._advance()["value"] == "let"  # consumes 'var' or 'let'
+        is_let = self._advance()["value"] == "let"
         name = self._expect_type("IDENTIFIER")["value"]
 
         type_annotation = None
@@ -258,12 +242,18 @@ class Parser:
         return ReturnStmt(value=value)
 
     def _parse_print(self):
+        # CHANGE 3: collect multiple comma-separated arguments so
+        # print("x =", x) or print(a, b, c) all work.
         self._expect_value("print")
         self._expect_value("(")
-        value = self._parse_expression()
+        values = []
+        if not self._check_value(")"):
+            values.append(self._parse_expression())
+            while self._match_value(","):
+                values.append(self._parse_expression())
         self._expect_value(")")
         self._expect_value(";")
-        return PrintStmt(value=value)
+        return PrintStmt(values=values)
 
     def _parse_expr_statement(self):
         expr = self._parse_expression()
@@ -281,7 +271,28 @@ class Parser:
             self._advance()  # consume '='
             value = self._parse_assignment()
             return Assignment(target=name, value=value)
-        return self._parse_equality()
+        return self._parse_logical()
+
+    # CHANGE 2: new method — sits between assignment and equality in
+    # the precedence chain so 'and'/'or'/'not' bind looser than == / !=
+    def _parse_logical(self):
+        """Handles:  expr and expr  |  expr or expr  |  not expr"""
+        # 'not' is a prefix/unary logical operator
+        if self._check_value("not"):
+            self._advance()
+            operand = self._parse_logical()
+            return LogicalOp(operator="not", left=None, right=operand)
+
+        left = self._parse_equality()
+
+        # 'and' binds tighter than 'or' — handle or at this level,
+        # then let a recursive call handle and inside its right side.
+        while self._check_value("and") or self._check_value("or"):
+            op = self._advance()["value"]
+            right = self._parse_equality()
+            left = LogicalOp(operator=op, left=left, right=right)
+
+        return left
 
     def _parse_equality(self):
         left = self._parse_comparison()
@@ -324,13 +335,6 @@ class Parser:
         return self._parse_call()
 
     def _parse_call(self):
-        """Parses a primary expression, then any trailing '(...)' calls
-        and/or '.member' accesses, chained left-to-right. Examples:
-          greet("World")        -> FunctionCall
-          rex.name              -> MemberAccess
-          rex.speak()           -> MethodCall
-          rex.speak().toUpper() -> MethodCall(MethodCall(...))  (chains work too)
-        """
         expr = self._parse_primary()
 
         while True:
@@ -357,8 +361,6 @@ class Parser:
         return expr
 
     def _parse_arguments(self):
-        """Parses a comma-separated argument list. Caller has already
-        consumed the opening '(' and is responsible for the closing ')'."""
         args = []
         if not self._check_value(")"):
             args.append(self._parse_expression())
@@ -379,9 +381,8 @@ class Parser:
 
         if tok["type"] == "STRING":
             self._advance()
-            return Literal(value=tok["value"][1:-1], literal_type="String")  # strip quotes
+            return Literal(value=tok["value"][1:-1], literal_type="String")
 
-        # Handle boolean literals as KEYWORD tokens (lexer emits them as KEYWORD, not IDENTIFIER)
         if tok["type"] == "KEYWORD":
             if tok["value"] == "true":
                 self._advance()
@@ -389,7 +390,6 @@ class Parser:
             if tok["value"] == "false":
                 self._advance()
                 return Literal(value=False, literal_type="Bool")
-            # Other keywords should not appear as primary expressions
             self._error("unexpected keyword while parsing an expression", tok)
 
         if tok["type"] == "IDENTIFIER":
